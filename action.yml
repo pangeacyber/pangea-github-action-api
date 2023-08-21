@@ -1,0 +1,24 @@
+name: 'Call Pangea API'
+description: 'Use this action to call any Pangea API as desired'
+branding: 
+  icon: archive
+  color: purple
+inputs:
+  endpoint:
+    description: 'Pangea API endpoint to call'
+    required: true
+  payload:
+    description: 'Pangea API payload'
+    required: true
+  domain:
+    description: 'Pangea Domain'
+    required: true
+  token:
+    description: 'Pangea Token with access to Secure Audit Log Service'
+    required: true
+outputs:
+  http_response:
+    description: 'The result from the Pangea API'
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
