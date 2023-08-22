@@ -9,6 +9,7 @@ jobs:
     - uses: actions/checkout@v3
     - uses: ./
       with:
-        text: "An issue was Opened, Closed, or re-opened"
+        endpoint: "audit.log"
+        payload: { message: "An issue was Opened, Closed, or re-opened" }
         token: ${{secrets.PANGEA_TOKEN}}
         domain: ${{secrets.PANGEA_DOMAIN}}
