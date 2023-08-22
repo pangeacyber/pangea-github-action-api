@@ -3,7 +3,7 @@ const github = require('@actions/github');
 const pangea = require('pangea-node-sdk');
 
 const endpoint = core.getInput('endpoint').split(".");
-const payload = core.getInput('payload');
+const payload = JSON.parse(core.getInput('payload'));
 const token = core.getInput('token');
 const domain = core.getInput('domain');
 const servicename = endpoint[0].charAt(0).toUpperCase() + endpoint[0].slice(1) + "Service";
