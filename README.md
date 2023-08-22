@@ -22,16 +22,17 @@ To configure Pangea:
 ## Inputs
 
 There are three required input parameters:
-1. The Pangea api endpoint to call.  
+1. The Pangea api endpoint to call
    1. Endpoints need to be in the format "service.endpoint" as shown in the Javascript SDK (e.g. "audit.log")
 2. The API payload for that endpoint
+   1. The payload needs to be json that can be parsed by the JSON.parse() method
 3. The Pangea token that has access to the service
 4. The Pangea domain for your service
 
 ```yml
 with:
   endpoint: "audit.log"
-  payload: {message: "Call the Pangea Audit Log to Test"}
+  payload: "{\"message\": \"Call the Pangea Audit Log to Test\"}"
   token: ${{secrets.PANGEA_TOKEN}}
   domain: ${{secrets.PANGEA_DOMAIN}}
 ```
@@ -52,7 +53,7 @@ jobs:
     - uses: pangeacyber/pangea-github-action-api@1.0.0
       with:
         endpoint: "audit.log"
-        payload: {message: "New pull request was opened for ${{github.repository}}"}
+        payload: "{\"message\": \"New pull request was opened for ${{github.repository}}\"}"
         token: ${{secrets.PANGEA_TOKEN}}
         domain: ${{secrets.PANGEA_DOMAIN}}
 ```
