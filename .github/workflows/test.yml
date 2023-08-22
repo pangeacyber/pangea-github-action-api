@@ -10,6 +10,6 @@ jobs:
     - uses: ./
       with:
         endpoint: "audit.log"
-        payload: "{ message: An issue was Opened, Closed, or re-opened }"
+        payload: "{\"message\": \"An issue was Opened, Closed, or re-opened\"}"
         token: ${{secrets.PANGEA_TOKEN}}
         domain: ${{secrets.PANGEA_DOMAIN}}
