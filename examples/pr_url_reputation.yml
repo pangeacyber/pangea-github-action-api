@@ -1,0 +1,54 @@
+name: Detect Malicious URLs in pull request
+on:
+  pull_request:
+    types: [opened, reopened, updated]
+jobs:
+  setup:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    outputs:
+      urls: ${{ steps.get.outputs.urls }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get URLs
+        id: get
+        run: |
+          URLS=$(gh pr diff $PR | grep -E -o "(http|https)://[^/\"]+" | sort -u ) 
+          for URL in $URLS; do
+           CSV_LIST="$CSV_LIST, \"$URL\""
+          done
+          CSV_LIST="[""${CSV_LIST:2}""]"
+          echo $CSV_LIST
+          echo "urls="$CSV_LIST >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+  execute:
+    needs: setup
+    permissions: write-all
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        urls: ${{fromJSON(needs.setup.outputs.urls)}}
+    steps:
+      - name: Run URL File Reputation
+        id: reputation
+        uses: pangeacyber/pangea-github-action-api@1.0.0
+        with:
+          endpoint: "URLIntel.reputation"
+          payload: "\"${{matrix.urls}}\""
+          token: ${{secrets.PANGEA_TOKEN}}
+          domain: ${{secrets.PANGEA_DOMAIN}}
+      - name: Log to Pangea
+        uses: pangeacyber/pangea-github-action-audit@1.0.2
+        with:
+          text: "Data for ${{matrix.urls}}: Results - ${{toJSON(fromJSON(steps.reputation.outputs.results).data)}} --- Params - ${{toJSON(fromJSON(steps.reputation.outputs.results).parameters)}}"
+          token: ${{secrets.PANGEA_TOKEN}}
+          domain: ${{secrets.PANGEA_DOMAIN}}
+      - uses: actions/checkout@v4
+      - name: Reject PR if Malicious
+        if: ${{ toJSON(fromJSON(steps.reputation.outputs.results).data.verdict) == 'malicious' &&  github.event.pull_request.state != 'closed' }}
+        run: gh pr close $PR -c "PR Closed due to Malicious URL Detected in code.  Check Pangea Log for Details"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
