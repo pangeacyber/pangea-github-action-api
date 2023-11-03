@@ -13,7 +13,8 @@ jobs:
       - name: Get URLs
         id: get
         run: |
-          URLS=$(gh pr diff $PR | grep -E -o "(http|https)://[^/\"]+" | sort -u ) 
+          gh pr diff $PR
+          URLS=$(gh pr diff $PR | grep -Po "(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])" | sort -u) 
           for URL in $URLS; do
            CSV_LIST="$CSV_LIST, \"$URL\""
           done
@@ -47,8 +48,10 @@ jobs:
           domain: ${{secrets.PANGEA_DOMAIN}}
       - uses: actions/checkout@v4
       - name: Reject PR if Malicious
-        if: ${{ toJSON(fromJSON(steps.reputation.outputs.results).data.verdict) == 'malicious' &&  github.event.pull_request.state != 'closed' }}
+        if: ${{ fromJSON(steps.reputation.outputs.results).data.verdict == 'malicious' && github.event.pull_request.state != 'closed' }}
         run: gh pr close $PR -c "PR Closed due to Malicious URL Detected in code.  Check Pangea Log for Details"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
+
+      
