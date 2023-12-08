@@ -558,7 +558,7 @@ class OidcClient {
                 .catch(error => {
                 throw new Error(`Failed to get ID Token. \n 
         Error Code : ${error.statusCode}\n 
-        Error Message: ${error.result.message}`);
+        Error Message: ${error.message}`);
             });
             const id_token = (_a = res.result) === null || _a === void 0 ? void 0 : _a.value;
             if (!id_token) {
@@ -22890,7 +22890,7 @@ module.exports = require("zlib");
 
 /***/ }),
 
-/***/ 9449:
+/***/ 7334:
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __nccwpck_require__) => {
 
 "use strict";
@@ -22907,6 +22907,7 @@ __nccwpck_require__.d(__webpack_exports__, {
   "DomainIntelService": () => (/* binding */ dist_DomainIntelService),
   "EmbargoService": () => (/* binding */ dist_EmbargoService),
   "FileIntelService": () => (/* binding */ dist_FileIntelService),
+  "FileScanService": () => (/* binding */ dist_FileScanService),
   "IPIntelService": () => (/* binding */ dist_IPIntelService),
   "Intel": () => (/* reexport */ Intel),
   "PangeaConfig": () => (/* binding */ dist_PangeaConfig),
@@ -22920,8 +22921,10 @@ __nccwpck_require__.d(__webpack_exports__, {
   "VaultService": () => (/* binding */ dist_VaultService),
   "b64toStr": () => (/* reexport */ b64toStr),
   "getHashPrefix": () => (/* reexport */ getHashPrefix),
+  "hashNTLM": () => (/* reexport */ hashNTLM),
   "hashSHA1": () => (/* reexport */ hashSHA1),
   "hashSHA256": () => (/* reexport */ hashSHA256),
+  "hashSHA512": () => (/* reexport */ hashSHA512),
   "strToB64": () => (/* reexport */ strToB64)
 });
 
@@ -22940,7 +22943,8 @@ var Intel;
     (function (HashType) {
         HashType["SHA256"] = "sha256";
         HashType["SHA1"] = "sha1";
-        HashType["MD5"] = "md5";
+        HashType["SHA512"] = "sha512";
+        HashType["NTLM"] = "ntlm";
     })(HashType = Intel.HashType || (Intel.HashType = {}));
     let User;
     (function (User) {
@@ -23077,22 +23081,40 @@ var AuthN;
         TokenType["CLIENT"] = "client";
         TokenType["SESSION"] = "session";
     })(TokenType = AuthN.TokenType || (AuthN.TokenType = {}));
+    let Agreements;
+    (function (Agreements) {
+        let AgreementType;
+        (function (AgreementType) {
+            AgreementType["EULA"] = "eula";
+            AgreementType["PRIVACY_POLICY"] = "privacy_policy";
+        })(AgreementType = Agreements.AgreementType || (Agreements.AgreementType = {}));
+        let AgreementListOrderBy;
+        (function (AgreementListOrderBy) {
+            AgreementListOrderBy["ID"] = "id";
+            AgreementListOrderBy["CREATED_AT"] = "created_at";
+            AgreementListOrderBy["NAME"] = "name";
+            AgreementListOrderBy["TEXT"] = "text";
+        })(AgreementListOrderBy = Agreements.AgreementListOrderBy || (Agreements.AgreementListOrderBy = {}));
+    })(Agreements = AuthN.Agreements || (AuthN.Agreements = {}));
     let Flow;
     (function (Flow) {
-        let Step;
-        (function (Step) {
-            Step["START"] = "start";
-            Step["VERIFY_CAPTCHA"] = "verify/captcha";
-            Step["SIGNUP"] = "signup";
-            Step["VERIFY_EMAIL"] = "verify/email";
-            Step["VERIFY_PASSWORD"] = "verify/password";
-            Step["VERIFY_SOCIAL"] = "verify/social";
-            Step["ENROLL_MFA_START"] = "enroll/mfa/start";
-            Step["ENROLL_MFA_COMPLETE"] = "enroll/mfa/complete";
-            Step["VERIFY_MFA_START"] = "verify/mfa/start";
-            Step["VERIFY_MFA_COMPLETE"] = "verify/mfa/complete";
-            Step["COMPLETE"] = "complete";
-        })(Step = Flow.Step || (Flow.Step = {}));
+        let Choice;
+        (function (Choice) {
+            Choice["AGREEMENTS"] = "agreements";
+            Choice["CAPTCHA"] = "captcha";
+            Choice["EMAIL_OTP"] = "email_otp";
+            Choice["MAGICLINK"] = "magiclink";
+            Choice["PASSWORD"] = "password";
+            Choice["PROFILE"] = "profile";
+            Choice["PROVISIONAL_ENROLLMENT"] = "provisional_enrollment";
+            Choice["RESET_PASSWORD"] = "reset_password";
+            Choice["SET_EMAIL"] = "set_mail";
+            Choice["SET_PASSWORD"] = "set_password";
+            Choice["SMS_OTP"] = "sms_otp";
+            Choice["SOCIAL"] = "social";
+            Choice["TOTP"] = "totp";
+            Choice["VERIFY_EMAIL"] = "verify_email";
+        })(Choice = Flow.Choice || (Flow.Choice = {}));
     })(Flow = AuthN.Flow || (AuthN.Flow = {}));
     let User;
     (function (User) {
@@ -23123,7 +23145,7 @@ var AuthN;
 
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/config.js
 
-const version = "2.0.0";
+const version = "3.0.0";
 class PangeaConfig {
     constructor(options) {
         Object.defineProperty(this, "domain", {
@@ -29102,10 +29124,13 @@ var errors_PangeaErrors;
             return this.response.result?.errors || [];
         }
         toString() {
-            let ret = "Summary: ";
-            ret += this.response.summary + "\n";
+            let ret = `Summary: ${this.response.summary}\n`;
+            ret += `status: ${this.response.status}\n`;
+            ret += `request_id: ${this.response.request_id}\n`;
+            ret += `request_time: ${this.response.request_time}\n`;
+            ret += `response_time: ${this.response.response_time}\n`;
             (this.response.result?.errors || []).forEach((ef) => {
-                ret += "\t" + ef.detail + "\n";
+                ret += `\t${ef.source} ${ef.code}: ${ef.detail}\n`;
             });
             return ret;
         }
@@ -29333,7 +29358,7 @@ const request_delay = async (ms) => new Promise((resolve) => {
     setTimeout(resolve, ms);
 });
 class PangeaRequest {
-    constructor(serviceName, token, config, isMultiConfigSupported = false) {
+    constructor(serviceName, token, config, configID) {
         Object.defineProperty(this, "serviceName", {
             enumerable: true,
             configurable: true,
@@ -29358,7 +29383,7 @@ class PangeaRequest {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "isMultiConfigSupported", {
+        Object.defineProperty(this, "configID", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -29379,11 +29404,11 @@ class PangeaRequest {
         this.config = new dist_config({ ...config });
         this.setCustomUserAgent(config.customUserAgent);
         this.extraHeaders = {};
-        this.isMultiConfigSupported = isMultiConfigSupported;
+        this.configID = configID;
     }
     checkConfigID(data) {
-        if (this.isMultiConfigSupported && this.config.configID && data.config_id === undefined) {
-            data.config_id = this.config.configID;
+        if (this.configID && !data.config_id) {
+            data.config_id = this.configID;
         }
     }
     async post(endpoint, data, options = {}) {
@@ -29579,26 +29604,14 @@ class BaseService {
     Optional:
       - config: a PangeaConfig object, uses defaults if non passed
     */
-    constructor(serviceName, token, config) {
+    constructor(serviceName, token, config, configID) {
         Object.defineProperty(this, "serviceName", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "isMultiConfigSupported", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
         Object.defineProperty(this, "token", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "apiVersion", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -29616,26 +29629,29 @@ class BaseService {
             writable: true,
             value: undefined
         });
+        Object.defineProperty(this, "configID", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         if (!serviceName)
             throw new Error("A serviceName is required");
         if (!token)
             throw new Error("A token is required");
         this.serviceName = serviceName;
-        this.apiVersion = "v1";
         this.token = token;
+        this.configID = configID;
         this.config = new dist_config({ ...config }) || new dist_config();
     }
     async get(endpoint) {
-        const fullpath = `${this.apiVersion}/${endpoint}`;
-        return await this.request.get(fullpath);
+        return await this.request.get(endpoint);
     }
     async post(endpoint, data, options = {}) {
-        const fullpath = `${this.apiVersion}/${endpoint}`;
-        return await this.request.post(fullpath, data, options);
+        return await this.request.post(endpoint, data, options);
     }
     async postMultipart(endpoint, data, filepath, options = {}) {
-        const fullpath = `${this.apiVersion}/${endpoint}`;
-        return await this.request.postMultipart(fullpath, data, filepath, options);
+        return await this.request.postMultipart(endpoint, data, filepath, options);
     }
     async pollResult(request_id) {
         return await this.request.pollResult(request_id, true);
@@ -29644,7 +29660,7 @@ class BaseService {
         if (this.request_) {
             return this.request_;
         }
-        this.request_ = new request(this.serviceName, this.token, this.config, this.isMultiConfigSupported);
+        this.request_ = new request(this.serviceName, this.token, this.config, this.configID);
         return this.request_;
     }
 }
@@ -29837,7 +29853,10 @@ class Verifier {
     }
 }
 
+// EXTERNAL MODULE: external "crypto"
+var external_crypto_ = __nccwpck_require__(6113);
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/utils/utils.js
+
 
 function orderKeysRecursive(obj) {
     const orderedEntries = Object.entries(obj).sort((a, b) => a[0].localeCompare(b[0]));
@@ -29896,6 +29915,18 @@ function hashSHA1(data) {
     var sha1 = crypto_js.algo.SHA1.create();
     sha1.update(data);
     return sha1.finalize().toString();
+}
+function hashSHA512(data) {
+    var sha512 = crypto_js.algo.SHA512.create();
+    sha512.update(data);
+    return sha512.finalize().toString();
+}
+function hashNTLM(password) {
+    // Calculate the MD4 hash
+    const md4Hash = external_crypto_.createHash("md4");
+    md4Hash.update(Buffer.from(password, "utf16le"));
+    // Get the NTLM hash as a hexadecimal string
+    return md4Hash.digest("hex").toUpperCase();
 }
 function getHashPrefix(hash, len = 5) {
     return hash.substring(0, len);
@@ -30128,8 +30159,12 @@ const verifySignature = (envelope) => {
  * @extends BaseService
  */
 class AuditService extends base {
-    constructor(token, config, tenantID = undefined) {
-        super("audit", token, config);
+    constructor(token, config, tenantID, configID) {
+        // FIXME: Temporary check to still support configID from PangeaConfig
+        if (!configID && config.configID) {
+            configID = config.configID;
+        }
+        super("audit", token, config, configID);
         Object.defineProperty(this, "publishedRoots", {
             enumerable: true,
             configurable: true,
@@ -30150,8 +30185,6 @@ class AuditService extends base {
         });
         this.publishedRoots = {};
         this.publishedRoots = {};
-        this.isMultiConfigSupported = true;
-        this.apiVersion = "v1";
         this.prevUnpublishedRootHash = undefined;
         this.tenantID = tenantID;
     }
@@ -30217,7 +30250,7 @@ class AuditService extends base {
                 data.prev_root = this.prevUnpublishedRootHash;
             }
         }
-        const response = await this.post("log", data);
+        const response = await this.post("v1/log", data);
         return this.processLogResponse(response, options);
     }
     async processLogResponse(response, options) {
@@ -30291,7 +30324,7 @@ class AuditService extends base {
         if (options?.verifyConsistency) {
             payload.verbose = true;
         }
-        const response = await this.post("search", payload);
+        const response = await this.post("v1/search", payload);
         return this.processSearchResponse(response, options);
     }
     /**
@@ -30321,7 +30354,7 @@ class AuditService extends base {
             limit,
             offset,
         };
-        const response = await this.post("results", payload);
+        const response = await this.post("v1/results", payload);
         return this.processSearchResponse(response, options);
     }
     /**
@@ -30340,7 +30373,7 @@ class AuditService extends base {
         if (size > 0) {
             data.tree_size = size;
         }
-        return this.post("root", data);
+        return this.post("v1/root", data);
     }
     async processSearchResponse(response, options) {
         if (!response.success) {
@@ -30395,18 +30428,17 @@ class AuditService extends base {
 class UserProfile extends base {
     constructor(token, config) {
         super("authn", token, config);
-        this.apiVersion = "v1";
     }
-    // authn::/v1/user/profile/get
     /**
      * @summary Get user
      * @description Get user's information by identity or email.
-     * @operationId authn_post_v1_user_profile_get
-     * @param {Object} data - Must include either an `email` or `id`:
+     * @operationId authn_post_v2_user_profile_get
+     * @param {AuthN.User.Profile.Get.EmailRequest | AuthN.User.Profile.Get.IDRequest} data - Must include either an `email` or `id`:
      *   - email (string): An email address
      *   - id (string): The identity of a user or a service
      * @returns {Promise<PangeaResponse<AuthN.User.Profile.GetResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/profile/get).
      * @example
      * ```js
      * const response = await authn.user.getProfile(
@@ -30417,19 +30449,19 @@ class UserProfile extends base {
      * ```
      */
     getProfile(data) {
-        return this.post("user/profile/get", data);
+        return this.post("v2/user/profile/get", data);
     }
-    // authn::/v1/user/profile/update
     /**
      * @summary Update user
      * @description Update user's information by identity or email.
-     * @operationId authn_post_v1_user_profile_update
-     * @param {Object} data - Must include either an `email` OR `id` AND `profile`:
+     * @operationId authn_post_v2_user_profile_update
+     * @param {AuthN.User.Profile.Update.EmailRequest | AuthN.User.Profile.Update.IDRequest} data - Must include either an `email` OR `id` AND `profile`:
      *   - email (string): An email address
      *   - id (string): The identity of a user or a service
      *   - profile (object): Updates to a user profile
      * @returns {Promise<PangeaResponse<AuthN.User.Profile.UpdateResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/profile/update).
      * @example
      * ```js
      * const response = await authn.user.profile.update(
@@ -30443,7 +30475,51 @@ class UserProfile extends base {
      * ```
      */
     update(data) {
-        return this.post("user/profile/update", data);
+        return this.post("v2/user/profile/update", data);
+    }
+}
+
+;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/user/authenticators.js
+
+class UserAuthenticators extends base {
+    constructor(token, config) {
+        super("authn", token, config);
+    }
+    /**
+     * @summary Delete user authenticator
+     * @description Delete a user's authenticator.
+     * @operationId authn_post_v2_user_authenticators_delete
+     * @param {AuthN.User.Authenticators.Delete.EmailRequest | AuthN.User.Authenticators.Delete.IDRequest} request
+     * @returns {Promise<PangeaResponse<{}>>} - A promise
+     * representing an async call to the endpoint. Contains an empty object.
+     * @example
+     * ```js
+     * await authn.authenticators.delete({
+     *   id: "pui_xpkhwpnz2cmegsws737xbsqnmnuwtbm5",
+     *   authenticator_id: "pau_wuk7tvtpswyjtlsx52b7yyi2l7zotv4a",
+     * });
+     * ```
+     */
+    delete(request) {
+        return this.post("v2/user/authenticators/delete", request);
+    }
+    /**
+     * @summary Get user authenticators
+     * @description Get user's authenticators by identity or email.
+     * @operationId authn_post_v2_user_authenticators_list
+     * @param {AuthN.User.Authenticators.ListRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.User.Authenticators.ListResult>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/authenticators/list).
+     * @example
+     * ```js
+     * const response = await authn.user.authenticators.list({
+     *   id: "pui_xpkhwpnz2cmegsws737xbsqnmnuwtbm5",
+     * });
+     * ```
+     */
+    list(request) {
+        return this.post("v2/user/authenticators/list", request);
     }
 }
 
@@ -30452,13 +30528,11 @@ class UserProfile extends base {
 class UserInvites extends base {
     constructor(token, config) {
         super("authn", token, config);
-        this.apiVersion = "v1";
     }
-    // authn::/v1/user/invite/list
     /**
      * @summary List invites
      * @description Look up active invites for the userpool.
-     * @operationId authn_post_v1_user_invite_list
+     * @operationId authn_post_v2_user_invite_list
      * @param {Object} request - Supported options:
      *   - filter (object)
      *   - last (string): Reflected value from a previous response to
@@ -30466,7 +30540,9 @@ class UserInvites extends base {
      *   - order (AuthN.ItemOrder): Order results asc(ending) or desc(ending).
      *   - order_by (AuthN.User.Invite.OrderBy): Which field to order results by.
      *   - size (number): Maximum results to include in the response.
-     * @returns {Promise<PangeaResponse<AuthN.User.Invite.ListResult>>} - A list of pending user invitations
+     * @returns {Promise<PangeaResponse<AuthN.User.Invite.ListResult>>} - A list of pending user invitations.
+     * Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/invite#/v2/user/invite/list).
      * @example
      * ```js
      * const response = await authn.user.invites.list(
@@ -30478,18 +30554,16 @@ class UserInvites extends base {
      * );
      * ```
      */
-    list(request) {
-        const options = request || {};
-        return this.post("user/invite/list", options);
+    list(request = {}) {
+        return this.post("v2/user/invite/list", request);
     }
-    // authn::/v1/user/invite/delete
     /**
      * @summary Delete Invite
      * @description Delete a user invitation.
-     * @operationId authn_post_v1_user_invite_delete
+     * @operationId authn_post_v2_user_invite_delete
      * @param {String} id - A one-time ticket
      * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Contains an empty object.
      * @example
      * ```js
      * await authn.user.invites.delete(
@@ -30501,244 +30575,11 @@ class UserInvites extends base {
         const data = {
             id,
         };
-        return this.post("user/invite/delete", data);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/user/login.js
-
-class UserLogin extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        this.apiVersion = "v1";
-    }
-    // authn::/v1/user/login/password
-    /**
-     * @summary Login with a password
-     * @description Login a user with a password and return the user's token and information.
-     * @operationId authn_post_v1_user_login_password
-     * @param {String} email - An email address
-     * @param {String} password - The user's password
-     * @param {Object} options - Supported options:
-     *   -  extra_profile (object): A user profile as a collection of string properties
-     * @returns {Promise<PangeaResponse<AuthN.User.Login.LoginResult>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.user.login.password(
-     *   "joe.user@email.com",
-     *   "My1s+Password",
-     *   {
-     *     extra_profile: {
-     *       first_name: "Joe",
-     *       last_name: "User",
-     *     },
-     *   }
-     * );
-     * ```
-     */
-    password(email, password, options = {}) {
-        const data = {
-            email: email,
-            password: password,
-        };
-        Object.assign(data, options);
-        return this.post("user/login/password", data);
-    }
-    // authn::/v1/user/login/social
-    /**
-     * @summary Login with a social provider
-     * @description Login a user by their social ID and return the user's token and information.
-     * @operationId authn_post_v1_user_login_social
-     * @param {AuthN.IDProvider} provider - Social identity provider for authenticating a user's identity
-     * @param {String} email - An email address
-     * @param {String} socialID - User's social ID with the provider
-     * @param {Object} options - Supported options:
-     *   -  extra_profile (object): A user profile as a collection of string properties
-     * @returns {Promise<PangeaResponse<AuthN.User.Login.LoginResult>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.user.login.social(
-     *   AuthN.IDProvider.GOOGLE,
-     *   "joe.user@email.com",
-     *   "My1s+Password",
-     *   {
-     *     extra_profile: {
-     *       first_name: "Joe",
-     *       last_name: "User",
-     *     },
-     *   }
-     * );
-     * ```
-     */
-    social(provider, email, socialID, options = {}) {
-        const data = {
-            provider: provider,
-            email: email,
-            social_id: socialID,
-        };
-        Object.assign(data, options);
-        return this.post("user/login/social", data);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/user/mfa.js
-
-class UserMFA extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        this.apiVersion = "v1";
-    }
-    // authn::/v1/user/mfa/delete
-    /**
-     * @summary Delete MFA Enrollment
-     * @description Delete MFA enrollment for a user.
-     * @operationId authn_post_v1_user_mfa_delete
-     * @param {String} userID - The identity of a user or a service
-     * @param {AuthN.MFAProvider} mfaProvider - Additional mechanism for authenticating
-     * a user's identity
-     * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * await authn.user.mfa.delete(
-     *   "pui_zgp532cx6opljeavvllmbi3iwmq72f7f",
-     *   AuthN.MFAProvider.TOTP
-     * );
-     * ```
-     */
-    delete(userID, mfaProvider) {
-        const data = {
-            user_id: userID,
-            mfa_provider: mfaProvider,
-        };
-        return this.post("user/mfa/delete", data);
-    }
-    // authn::/v1/user/mfa/enroll
-    /**
-     * @summary Enroll In MFA
-     * @description Enroll in MFA for a user by proving the user has access to an MFA verification code.
-     * @operationId authn_post_v1_user_mfa_enroll
-     * @param {String} userID - The identity of a user or a service
-     * @param {AuthN.MFAProvider} mfaProvider - Additional mechanism for authenticating
-     * a user's identity
-     * @param {String} code - A six digit MFA code
-     * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * await authn.user.mfa.enroll(
-     *   "pui_zgp532cx6opljeavvllmbi3iwmq72f7f",
-     *   AuthN.MFAProvider.TOTP,
-     *   "999999"
-     * );
-     * ```
-     */
-    enroll(userID, mfaProvider, code) {
-        const data = {
-            user_id: userID,
-            mfa_provider: mfaProvider,
-            code: code,
-        };
-        return this.post("user/mfa/enroll", data);
-    }
-    // authn::/v1/user/mfa/start
-    /**
-     * @summary Start MFA Verification
-     * @description Start MFA verification for a user, generating a new one-time code,
-     * and sending it if necessary. When enrolling TOTP, this returns the TOTP secret.
-     * @operationId authn_post_v1_user_mfa_start
-     * @param {String} userID - The identity of a user or a service
-     * @param {AuthN.MFAProvider} mfaProvider - Additional mechanism for authenticating
-     * a user's identity
-     * @param {Object} options - Supported options:
-     *   - enroll (boolean)
-     *   - phone (string): A phone number
-     * @returns {Promise<PangeaResponse<AuthN.User.MFA.StartResult>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.user.mfa.start(
-     *   "pui_zgp532cx6opljeavvllmbi3iwmq72f7f",
-     *   AuthN.MFAProvider.SMS_OTP,
-     *   { phone: "1-808-555-0173" }
-     * );
-     * ```
-     */
-    start(userID, mfaProvider, options) {
-        const data = {
-            user_id: userID,
-            mfa_provider: mfaProvider,
-        };
-        Object.assign(data, options);
-        return this.post("user/mfa/start", data);
-    }
-    // authn::/v1/user/mfa/verify
-    /**
-     * @summary Verify An MFA Code
-     * @description Verify that the user has access to an MFA verification code.
-     * @operationId authn_post_v1_user_mfa_verify
-     * @param {String} userID - The identity of a user or a service
-     * @param {AuthN.MFAProvider} mfaProvider - Additional mechanism for authenticating
-     * a user's identity
-     * @param {String} code - A six digit MFA code
-     * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * await authn.user.mfa.verify(
-     *   "pui_zgp532cx6opljeavvllmbi3iwmq72f7f",
-     *   AuthN.MFAProvider.TOTP,
-     *   "999999"
-     * );
-     * ```
-     */
-    verify(userID, mfaProvider, code) {
-        const data = {
-            user_id: userID,
-            mfa_provider: mfaProvider,
-            code: code,
-        };
-        return this.post("user/mfa/verify", data);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/user/password.js
-
-class UserPassword extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        this.apiVersion = "v1";
-    }
-    // authn::/v1/user/password/reset
-    /**
-     * @summary Password Reset
-     * @description Manually reset a user's password.
-     * @operationId authn_post_v1_user_password_reset
-     * @param {Object} data - Required fields:
-     *   - user_id (string): The identity of a user or a service
-     *   - new_password (string)
-     * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * await authn.user.password.reset(
-     *   {
-     *     user_id: "pui_zgp532cx6opljeavvllmbi3iwmq72f7f",
-     *     new_password: "My2n+Password",
-     *   }
-     * );
-     * ```
-     */
-    reset(data) {
-        return this.post("user/password/reset", data);
+        return this.post("v2/user/invite/delete", data);
     }
 }
 
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/user/index.js
-
-
 
 
 
@@ -30752,147 +30593,66 @@ class User extends base {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "authenticators", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "invites", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "login", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "mfa", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "password", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.apiVersion = "v1";
         this.profile = new UserProfile(token, config);
+        this.authenticators = new UserAuthenticators(token, config);
         this.invites = new UserInvites(token, config);
-        this.login = new UserLogin(token, config);
-        this.mfa = new UserMFA(token, config);
-        this.password = new UserPassword(token, config);
     }
-    // authn::/v1/user/delete
     /**
      * @summary Delete User
      * @description Delete a user.
-     * @operationId authn_post_v1_user_delete
-     * @param {Object} request - Supported options:
+     * @operationId authn_post_v2_user_delete
+     * @param {AuthN.User.Delete.EmailRequest | AuthN.User.Delete.IDRequest} request - Supported options:
      *   - email (string): An email address
      *   - id (string): The identity of a user or a service
      * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Contains an empty object.
      * @example
-     * await authn.user.delete(
-     *   { email: "example@example.com" }
-     * );
+     * await authn.user.delete({
+     *   id: "pui_xpkhwpnz2cmegsws737xbsqnmnuwtbm5",
+     * });
      */
     delete(request) {
-        return this.post("user/delete", request);
+        return this.post("v2/user/delete", request);
     }
-    // authn::/v1/user/create
     /**
      * @summary Create User
      * @description Create a user.
-     * @operationId authn_post_v1_user_create
-     * @param {String} email - An email address
-     * @param {String} authenticator - A provider-specific authenticator,
-     * such as a password or a social identity.
-     * @param {AuthN.IDProvider} idProvider - Mechanism for authenticating a
-     * user's identity
-     * @param {Object} options - Supported options:
-     *   - verified (boolean):  True if the user's email has been verified
-     *   - require_mfa (boolean): True if the user must use MFA
-     * during authentication
-     *   - profile (object): A user profile as a collection of string properties
-     *   - scopes (string[]): A list of scopes
+     * @operationId authn_post_v2_user_create
+     * @param {AuthN.User.CreateRequest} request
      * @returns {Promise<PangeaResponse<AuthN.User.CreateResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/create).
      * @example
      * ```js
-     * const response = await authn.user.create(
-     *   "joe.user@email.com",
-     *   "My1s+Password",
-     *   AuthN.IDProvider.PASSWORD,
-     *   {
-     *     verified: false,
-     *     require_mfa: false,
-     *     profile: {
-     *       first_name: "Joe",
-     *       last_name: "User",
-     *     }
-     *     scopes: ["scope1", "scope2"],
-     *   }
-     * );
+     * const response = await authn.user.create({
+     *   email: "joe.user@email.com",
+     *   profile: {
+     *     first_name: "Joe",
+     *     last_name: "User",
+     *   },
+     * });
      * ```
      */
-    create(email, authenticator, idProvider, { verified, require_mfa, profile, scopes } = {}) {
-        const data = {
-            email: email,
-            authenticator: authenticator,
-            id_provider: idProvider,
-        };
-        if (typeof verified === "boolean")
-            data.verified = verified;
-        if (typeof require_mfa === "boolean")
-            data.require_mfa = require_mfa;
-        if (profile)
-            data.profile = profile;
-        if (scopes)
-            data.scopes = scopes;
-        return this.post("user/create", data);
+    create(request) {
+        return this.post("v2/user/create", request);
     }
-    // authn::/v1/user/invite
-    /**
-     * @summary Invite User
-     * @description Send an invitation to a user.
-     * @operationId authn_post_v1_user_invite
-     * @param {String} inviter - An email address
-     * @param {String} email - An email address
-     * @param {String} callback - A login callback URI
-     * @param {String} state - State tracking string fo login callbacks
-     * @param {Object} options - Supported options:
-     *   - require_mfa (boolean): Require the user to authenticate with MFA
-     * @returns {Promise<PangeaResponse<AuthN.User.InviteResult>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.user.invite(
-     *   "admin@email.com",
-     *   "joe.user@email.com",
-     *   "/callback",
-     *   "pcb_zurr3lkcwdp5keq73htsfpcii5k4zgm7",
-     *   { require_mfa: false }
-     * );
-     * ```
-     */
-    invite(inviter, email, callback, state, options = {}) {
-        const data = {
-            inviter,
-            email,
-            callback,
-            state,
-        };
-        Object.assign(data, options);
-        return this.post("user/invite", data);
-    }
-    // authn::/v1/user/list
     /**
      * @summary List Users
      * @description Look up users by scopes.
-     * @operationId authn_post_v1_user_list
-     * @param {Object} options - Supported options:
+     * @operationId authn_post_v2_user_list
+     * @param {AuthN.User.ListRequest} request - Supported options:
      *   - filter (object)
      *   - last (string): Reflected value from a previous response to
      * obtain the next page of results.
@@ -30900,7 +30660,8 @@ class User extends base {
      *   - order_by (AuthN.User.ListOrderBy): Which field to order results by.
      *   - size (number): Maximum results to include in the response.
      * @returns {Promise<PangeaResponse<AuthN.User.ListResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/list).
      * @example
      * ```js
      * const response = await authn.user.list(
@@ -30913,492 +30674,69 @@ class User extends base {
      * ```
      */
     list(request) {
-        request.use_new = true;
-        return this.post("user/list", request);
+        return this.post("v2/user/list", request);
     }
-    // authn::/v1/user/verify
-    /**
-     * @summary Verify User
-     * @description Verify a user's primary authentication.
-     * @operationId authn_post_v1_user_verify
-     * @param {AuthN.IDProvider} idProvider - Mechanism for authenticating a
-     * user's identity
-     * @param {String} email - An email address
-     * @param {String} authenticator - A provider-specific authenticator,
-     * such as a password or a social identity.
-     * @returns {Promise<PangeaResponse<AuthN.User.VerifyResult>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.user.verify(
-     *   AuthN.IDProvider.PASSWORD,
-     *   "joe.user@email.com",
-     *   "My1s+Password"
-     * );
-     * ```
-     */
-    verify(idProvider, email, authenticator) {
-        const data = {
-            id_provider: idProvider,
-            email: email,
-            authenticator: authenticator,
-        };
-        return this.post("user/verify", data);
-    }
-    // authn::/v1/user/update
     /**
      * @summary Update user's settings
      * @description Update user's settings.
-     * @operationId authn_post_v1_user_update
-     * @param {Object} request - Supported request:
+     * @operationId authn_post_v2_user_update
+     * @param {AuthN.User.Update.EmailRequest | AuthN.User.Update.IDRequest} request - Supported request:
      *   - email (string): An email address
      *   - id (string): The identity of a user or a service
-     * @param {Object} options - Supported options:
-     *   - authenticator (string): New value for a user's authenticator.
-     *   - disabled (boolean): New disabled value.
-     * Disabling a user account will prevent them from logging in.
-     *   - require_mfa (boolean): New require_mfa value
-     *   - verified (boolean): New verified value
+     *   - disabled (boolean): Disabling a user account will prevent them from logging in.
      * @returns {Promise<PangeaResponse<AuthN.User.UpdateResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/update).
      * @example
      * ```js
      * const response = await authn.user.update(
-     *   { email: "joe.user@email.com" },
      *   {
-     *     disabled: false,
-     *     require_mfa: true,
+     *    email: "joe.user@email.com",
+     *    disabled: false,
      *   }
      * );
      * ```
      */
-    update(request, options) {
-        const data = {
-            ...request,
-            ...options,
-        };
-        return this.post("user/update", data);
+    update(request) {
+        return this.post("v2/user/update", request);
     }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/flow/enroll/mfa.js
-
-class FlowEnrollMFA extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        this.apiVersion = "v1";
-    }
-    // authn::/v1/flow/enroll/mfa/start
     /**
-     * @summary Start MFA Enrollment
-     * @description Start the process of enrolling an MFA.
-     * @operationId authn_post_v1_flow_enroll_mfa_start
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {AuthN.MFAProvider} mfaProvider - Additional mechanism for authenticating a user's identity
-     * @param {Object} options - Supported options:
-     *   - phone (string): A phone number
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
+     * @summary Invite User
+     * @description Send an invitation to a user.
+     * @operationId authn_post_v2_user_invite
+     * @param {AuthN.User.InviteRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.User.InviteResult>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/invite#/v2/user/invite).
      * @example
      * ```js
-     * const response = await authn.flow.enroll.mfa.start(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   AuthN.MFAProvider.SMS_OTP,
-     *   { phone: "1-808-555-0173" }
-     * );
+     * const response = await authn.user.invite({
+     *   inviter: "admin@email.com",
+     *   email: "joe.user@email.com",
+     *   callback: "https://www.myserver.com/callback",
+     *   state: "pcb_zurr3lkcwdp5keq73htsfpcii5k4zgm7",
+     * });
      * ```
      */
-    start(flowID, mfaProvider, options) {
-        const data = {
-            flow_id: flowID,
-            mfa_provider: mfaProvider,
-        };
-        Object.assign(data, options);
-        return this.post("flow/enroll/mfa/start", data);
-    }
-    // authn::/v1/flow/enroll/mfa/complete
-    /**
-     * @summary Complete MFA Enrollment
-     * @description Complete MFA enrollment by verifying a trial MFA code.
-     * @operationId authn_post_v1_flow_enroll_mfa_complete
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {Object} options - Supported options:
-     *   - code (string): A six digit MFA code
-     *   - cancel (boolean)
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = authn.flow.enroll.mfa.complete(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   { code: "391423" }
-     * );
-     * ```
-     */
-    complete(flowID, options) {
-        const data = {
-            flow_id: flowID,
-        };
-        Object.assign(data, options);
-        return this.post("flow/enroll/mfa/complete", data);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/flow/enroll/index.js
-
-
-class FlowEnroll extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        Object.defineProperty(this, "mfa", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.apiVersion = "v1";
-        this.mfa = new FlowEnrollMFA(token, config);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/flow/signup.js
-
-class FlowSignup extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        this.apiVersion = "v1";
-    }
-    // authn::/v1/flow/signup/password
-    /**
-     * @summary Password Sign-up
-     * @description Signup a new account using a password.
-     * @operationId authn_post_v1_flow_signup_password
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {String} password - A password
-     * @param {String} firstName
-     * @param {String} lastName
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.signup.password(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   "My1s+Password",
-     *   "Joe",
-     *   "User"
-     * );
-     * ```
-     */
-    password(flowID, password, firstName, lastName) {
-        const data = {
-            flow_id: flowID,
-            password: password,
-            first_name: firstName,
-            last_name: lastName,
-        };
-        return this.post("flow/signup/password", data);
-    }
-    // authn::/v1/flow/signup/social
-    /**
-     * @summary Social Sign-up
-     * @description Signup a new account using a social provider.
-     * @operationId authn_post_v1_flow_signup_social
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {String} cbState - State tracking string fo login callbacks
-     * @param {String} cbCode - A social oauth callback code
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.signup.social(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   "pcb_zurr3lkcwdp5keq73htsfpcii5k4zgm7",
-     *   "poc_fwg3ul4db1jpivexru3wyj354u9ej5e2"
-     * );
-     * ```
-     */
-    social(flowID, cbState, cbCode) {
-        const data = {
-            flow_id: flowID,
-            cb_code: cbCode,
-            cb_state: cbState,
-        };
-        return this.post("flow/signup/social", data);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/flow/verify/mfa.js
-
-class FlowVerifyMFA extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        this.apiVersion = "v1";
-    }
-    // authn::/v1/flow/verify/mfa/complete
-    /**
-     * @summary Complete MFA Verification
-     * @description Complete MFA verification.
-     * @operationId authn_post_v1_flow_verify_mfa_complete
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {Object} options - Supported options:
-     *   - code (string): A six digit MFA code
-     *   - cancel (boolean)
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.verify.mfa.complete(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   { code: "391423" }
-     * );
-     * ```
-     */
-    complete(flowID, options) {
-        const data = {
-            flow_id: flowID,
-        };
-        Object.assign(data, options);
-        return this.post("flow/verify/mfa/complete", data);
-    }
-    // authn::/v1/flow/verify/mfa/start
-    /**
-     * @summary Start MFA Verification
-     * @description Start the process of MFA verification.
-     * @operationId authn_post_v1_flow_verify_mfa_start
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {AuthN.MFAProvider} mfaProvider - Additional mechanism for
-     * authenticating a user's identity
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.verify.mfa.start(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   AuthN.MFAProvider.TOTP
-     * );
-     * ```
-     */
-    start(flowID, mfaProvider) {
-        const data = {
-            flow_id: flowID,
-            mfa_provider: mfaProvider,
-        };
-        return this.post("flow/verify/mfa/start", data);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/flow/verify/index.js
-
-
-class FlowVerify extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        Object.defineProperty(this, "mfa", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.apiVersion = "v1";
-        this.mfa = new FlowVerifyMFA(token, config);
-    }
-    // authn::/v1/flow/verify/captcha
-    /**
-     * @summary Verify CAPTCHA
-     * @description Verify a CAPTCHA during a signup or signin flow.
-     * @operationId authn_post_v1_flow_verify_captcha
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {String} code - Code from CAPTCHA
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.verify.captcha(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   "SOMEREALLYLONGANDOPAQUESTRINGFROMCAPTCHAVERIFICATION"
-     * );
-     * ```
-     */
-    captcha(flowID, code) {
-        const data = {
-            flow_id: flowID,
-            code: code,
-        };
-        return this.post("flow/verify/captcha", data);
-    }
-    // authn::/v1/flow/verify/email
-    /**
-     * @summary Verify Email Address
-     * @description Verify an email address during a signup or signin flow.
-     * @operationId authn_post_v1_flow_verify_email
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {Object} options - Supported options:
-     *   - cb_state (string): State tracking string for login callbacks
-     *   - cb_code (string): A social oauth callback code
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.verify.email(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   {
-     *     cb_state: "pcb_zurr3lkcwdp5keq73htsfpcii5k4zgm7",
-           cb_code: "poc_fwg3ul4db1jpivexru3wyj354u9ej5e2",
-     *   }
-     * );
-     * ```
-     */
-    email(flowID, options) {
-        const data = {
-            flow_id: flowID,
-        };
-        Object.assign(data, options);
-        return this.post("flow/verify/email", data);
-    }
-    // authn::/v1/flow/verify/password
-    /**
-     * @summary Password Sign-in
-     * @description Sign in with a password.
-     * @operationId authn_post_v1_flow_verify_password
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {Object} options - Supported options:
-     *   - password (string): A password
-     *   - reset (boolean): Used to reset a password
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.verify.password(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   { password: "My1s+Password" }
-     * );
-     * ```
-     */
-    password(flowID, options) {
-        const data = {
-            flow_id: flowID,
-        };
-        Object.assign(data, options);
-        return this.post("flow/verify/password", data);
-    }
-    // authn::/v1/flow/verify/social
-    /**
-     * @summary Social Sign-in
-     * @description Signin with a social provider.
-     * @operationId authn_post_v1_flow_verify_social
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {String} cbState - State tracking string for login callbacks
-     * @param {String} cbCode - A social oauth callback code
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.verify.social(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   "pcb_zurr3lkcwdp5keq73htsfpcii5k4zgm7",
-     *   "poc_fwg3ul4db1jpivexru3wyj354u9ej5e2"
-     * );
-     * ```
-     */
-    social(flowID, cbState, cbCode) {
-        const data = {
-            flow_id: flowID,
-            cb_code: cbCode,
-            cb_state: cbState,
-        };
-        return this.post("flow/verify/social", data);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/flow/reset.js
-
-class FlowReset extends base {
-    constructor(token, config) {
-        super("authn", token, config);
-        this.apiVersion = "v1";
-    }
-    // authn::/v1/flow/reset/password
-    /**
-     * @summary Password Reset
-     * @description Reset password during sign-in.
-     * @operationId authn_post_v1_flow_reset_password
-     * @param {String} flowID - An ID for a login or signup flow
-     * @param {String} password - A password
-     * @param {Object} options - Supported options:
-     *   - cb_state (string): State tracking string for login callbacks
-     *   - cb_code (string): A social oauth callback code
-     *   - cancel (boolean)
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Reset.PasswordResult>>} - A promise
-     * representing an async call to the endpoint.
-     * @example
-     * ```js
-     * const response = await authn.flow.reset.password(
-     *   "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
-     *   "My1s+Password",
-     *   {
-     *     cb_state: "pcb_zurr3lkcwdp5keq73htsfpcii5k4zgm7",
-     *     cb_code: "poc_fwg3ul4db1jpivexru3wyj354u9ej5e2",
-     *   }
-     * );
-     * ```
-     */
-    password(flowID, password, options = {}) {
-        const data = {
-            flow_id: flowID,
-            password: password,
-        };
-        Object.assign(data, options);
-        return this.post("flow/reset/password", data);
+    invite(request) {
+        return this.post("v2/user/invite", request);
     }
 }
 
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/flow/index.js
 
-
-
-
-
 class Flow extends base {
     constructor(token, config) {
         super("authn", token, config);
-        Object.defineProperty(this, "enroll", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "signup", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "verify", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "reset", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.apiVersion = "v1";
-        this.enroll = new FlowEnroll(token, config);
-        this.signup = new FlowSignup(token, config);
-        this.verify = new FlowVerify(token, config);
-        this.reset = new FlowReset(token, config);
     }
-    // authn::/v1/flow/complete
     /**
-     * @summary Complete Sign-up/in
+     * @summary Complete sign-up/sign-in
      * @description Complete a login or signup flow.
-     * @operationId authn_post_v1_flow_complete
+     * @operationId authn_post_v2_flow_complete
      * @param {String} flowID - An ID for a login or signup flow
      * @returns {Promise<PangeaResponse<AuthN.Flow.CompleteResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/flow#/v2/flow/complete).
      * @example
      * ```js
      * const response = await authn.flow.complete(
@@ -31410,39 +30748,73 @@ class Flow extends base {
         const data = {
             flow_id: flowID,
         };
-        return this.post("flow/complete", data);
+        return this.post("v2/flow/complete", data);
     }
-    // authn::/v1/flow/start
     /**
-     * @summary Start a sign-up/in
+     * @summary Start a sign-up/sign-in flow
      * @description Start a new signup or signin flow.
-     * @operationId authn_post_v1_flow_start
-     * @param {Object} options - Supported options:
-     *   - email (string): An email address
-     *   - cb_uri (string http-url): A login callback URI
-     *   - flow_types (AuthN.FlowType[]): A list of flow types
-     *   - provider (AuthN.IDProvider): Mechanism for authenticating a user's identity
-     * @returns {Promise<PangeaResponse<AuthN.Flow.Result>>} - A promise
-     * representing an async call to the endpoint.
+     * @operationId authn_post_v2_flow_start
+     * @param {AuthN.Flow.StartRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.Flow.StartResult>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/flow#/v2/flow/start).
      * @example
      * ```js
-     * const response = await authn.flow.start(
-     *   {
-     *     email: "joe.user@email.com",
-     *     cb_uri: "https://www.myserver.com/callback",
-     *     flow_types: [
-     *       AuthN.FlowType.SIGNUP,
-     *       AuthN.FlowType.SIGNIN,
-     *     ],
-     *     provider: AuthN.IDProvider.PASSWORD,
-     *   }
-     * )
+     * const response = await authn.flow.start({
+     *   email: "joe.user@email.com",
+     *   cb_uri: "https://www.myserver.com/callback",
+     *   flow_types: [
+     *     AuthN.FlowType.SIGNIN,
+     *     AuthN.FlowType.SIGNUP,
+     *   ],
+     *   invitation: "pmc_wuk7tvtpswyjtlsx52b7yyi2l7zotv4a",
+     * });
      * ```
      */
-    start(options) {
-        const data = {};
-        Object.assign(data, options);
-        return this.post("flow/start", data);
+    start(request) {
+        return this.post("v2/flow/start", request);
+    }
+    /**
+     * @summary Restart a sign-up/sign-in flow
+     * @description Restart a signup-up/in flow choice.
+     * @operationId authn_post_v2_flow_restart
+     * @param {AuthN.Flow.RestartRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.Flow.RestartResult>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/flow#/v2/flow/restart).
+     * @example
+     * ```js
+     * const response = await authn.flow.restart({
+     *   flow_id: "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
+     *   choice: AuthN.Flow.Choice.PASSWORD,
+     *   data: {},
+     * });
+     * ```
+     */
+    restart(request) {
+        return this.post("v2/flow/restart", request);
+    }
+    /**
+     * @summary Update a sign-up/sign-in flow
+     * @description Update a sign-up/sign-in flow.
+     * @operationId authn_post_v2_flow_update
+     * @param {AuthN.Flow.UpdateRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.Flow.UpdateResult>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/flow#/v2/flow/update).
+     * @example
+     * ```js
+     * const response = await authn.flow.update({
+     *   flow_id: "pfl_dxiqyuq7ndc5ycjwdgmguwuodizcaqhh",
+     *   choice: AuthN.Flow.Choice.PASSWORD,
+     *   data: {
+     *     password: "someNewPasswordHere",
+     *   },
+     * });
+     * ```
+     */
+    update(request) {
+        return this.post("v2/flow/update", request);
     }
 }
 
@@ -31451,17 +30823,15 @@ class Flow extends base {
 class ClientSession extends base {
     constructor(token, config) {
         super("authn", token, config);
-        this.apiVersion = "v1";
     }
-    // authn::/v1/client/session/invalidate
     /**
      * @summary Invalidate Session | Client
      * @description Invalidate a session by session ID using a client token.
-     * @operationId authn_post_v1_client_session_invalidate
+     * @operationId authn_post_v2_client_session_invalidate
      * @param {String} token - A user token value
      * @param {String} sessionID - An ID for a token
      * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint. Contains an empty object
+     * representing an async call to the endpoint. Contains an empty object.
      * @example
      * ```js
      * await authn.client.session.invalidate(
@@ -31475,13 +30845,12 @@ class ClientSession extends base {
             token: token,
             session_id: sessionID,
         };
-        return this.post("client/session/invalidate", data);
+        return this.post("v2/client/session/invalidate", data);
     }
-    // authn::/v1/client/session/list
     /**
      * @summary List sessions (client token)
      * @description List sessions using a client token.
-     * @operationId authn_post_v1_client_session_list
+     * @operationId authn_post_v2_client_session_list
      * @param {String} token - A user token value
      * @param {Object} options - Supported options:
      *   - filter (object): A filter object
@@ -31491,7 +30860,8 @@ class ClientSession extends base {
      *     `id`, `created_at`, `type`, `identity`, `email`, `expire`, `active_token_id`
      *   - size (integer): Maximum results to include in the response. Minimum is `1`.
      * @returns {Promise<PangeaResponse<AuthN.Session.ListResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/session#/v2/client/session/list).
      * @example
      * ```js
      * const response = await authn.client.session.list(
@@ -31505,13 +30875,12 @@ class ClientSession extends base {
             token,
         };
         Object.assign(data, options);
-        return this.post("client/session/list", data);
+        return this.post("v2/client/session/list", data);
     }
-    // authn::/v1/client/session/logout
     /**
      * @summary Log out (client token)
      * @description Log out the current user's session.
-     * @operationId authn_post_v1_client_session_logout
+     * @operationId authn_post_v2_client_session_logout
      * @param {String} token - A user token value
      * @returns {Promise<PangeaResponse<{}>>} - A promise
      * representing an async call to the endpoint. Contains an empty object.
@@ -31523,18 +30892,18 @@ class ClientSession extends base {
      * ```
      */
     logout(token) {
-        return this.post("client/session/logout", { token });
+        return this.post("v2/client/session/logout", { token });
     }
-    // authn::/v1/client/session/refresh
     /**
      * @summary Refresh a Session
      * @description Refresh a session token.
-     * @operationId authn_post_v1_client_session_refresh
+     * @operationId authn_post_v2_client_session_refresh
      * @param {String} refreshToken - A refresh token value
      * @param {Object} options -  Supported options:
      *   - user_token (string): A user token value
      * @returns {Promise<PangeaResponse<AuthN.Client.Session.RefreshResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/session#/v2/client/session/refresh).
      * @example
      * ```js
      * const response = await authn.client.session.refresh(
@@ -31549,7 +30918,7 @@ class ClientSession extends base {
         };
         if (user_token)
             data.user_token = user_token;
-        return this.post("client/session/refresh", data);
+        return this.post("v2/client/session/refresh", data);
     }
 }
 
@@ -31558,20 +30927,19 @@ class ClientSession extends base {
 class ClientPassword extends base {
     constructor(token, config) {
         super("authn", token, config);
-        this.apiVersion = "v1";
     }
-    // authn::/v1/client/password/change
     /**
      * @summary Change a user's password
      * @description Change a user's password given the current password.
-     * @operationId authn_post_v1_client_password_change
-     * @param {String} token - An user token
+     * @operationId authn_post_v2_client_password_change
+     * @param {String} token - An user token value
      * @param {String} oldPassword - The old password
      * @param {String} newPassword - The new password
-     * @returns {Promise<PangeaResponse<{}>>} - A promise representing an async call to the endpoint
+     * @returns {Promise<PangeaResponse<{}>>} - A promise representing an async call to the endpoint.
+     * Contains an empty object.
      * @example
      * ```js
-     * const response = await authn.client.password.change(
+     * await authn.client.password.change(
      *   "ptu_wuk7tvtpswyjtlsx52b7yyi2l7zotv4a",
      *   "hunter2",
      *   "My2n+Password"
@@ -31584,7 +30952,7 @@ class ClientPassword extends base {
             old_password: oldPassword,
             new_password: newPassword,
         };
-        return this.post("client/password/change", data);
+        return this.post("v2/client/password/change", data);
     }
 }
 
@@ -31593,16 +30961,15 @@ class ClientPassword extends base {
 class ClientToken extends base {
     constructor(token, config) {
         super("authn", token, config);
-        this.apiVersion = "v1";
     }
-    // authn::/v1/client/token/check
     /**
      * @summary Check a token
      * @description Look up a token and return its contents.
-     * @operationId authn_post_v1_client_token_check
+     * @operationId authn_post_v2_client_token_check
      * @param {String} token - A token value
      * @returns {Promise<PangeaResponse<AuthN.Client.Token.CheckResult>>} - A promise
-     * representing an async call to the endpoint.
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/flow#/v2/client/token/check).
      * @example
      * ```js
      * const response = await authn.client.clientToken.check(
@@ -31614,7 +30981,7 @@ class ClientToken extends base {
         const data = {
             token: token,
         };
-        return this.post("client/token/check", data);
+        return this.post("v2/client/token/check", data);
     }
 }
 
@@ -31644,23 +31011,22 @@ class Client extends base {
             writable: true,
             value: void 0
         });
-        this.apiVersion = "v1";
         this.session = new ClientSession(token, config);
         this.password = new ClientPassword(token, config);
         this.clientToken = new ClientToken(token, config);
     }
-    // authn::/v1/client/userinfo
     /**
      * @summary Get User (client token)
      * @description Retrieve the logged in user's token and information.
-     * @operationId authn_post_v1_client_userinfo
-     * @param {String} code - A one-time ticket
+     * @operationId authn_post_v2_client_userinfo
+     * @param {String} code - Login code returned by the login callback
      * @returns {Promise<PangeaResponse<AuthN.Client.UserinfoResult>>} - A promise
-     * representing an async call to the endpoint
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/client/userinfo).
      * @example
      * ```js
      * const response = await authn.client.userinfo(
-     *   "pmc_d6chl6qulpn3it34oerwm3cqwsjd6dxw",
+     *   "pmc_d6chl6qulpn3it34oerwm3cqwsjd6dxw"
      * );
      * ```
      */
@@ -31668,22 +31034,22 @@ class Client extends base {
         const data = {
             code: code,
         };
-        return this.post("client/userinfo", data);
+        return this.post("v2/client/userinfo", data);
     }
-    // authn::/v1/client/jwks
     /**
      * @summary Get JWT verification keys
      * @description Get JWT verification keys.
-     * @operationId authn_post_v1_client_jwks
+     * @operationId authn_post_v2_client_jwks
      * @returns {Promise<PangeaResponse<AuthN.Client.JWKSResult>>} - A promise
-     * representing an async call to the endpoint
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/jwt#/v2/client/jwks).
      * @example
      * ```js
      * const response = await authn.client.jwks();
      * ```
      */
     jwks() {
-        return this.post("client/jwks", {});
+        return this.post("v2/client/jwks", {});
     }
 }
 
@@ -31692,13 +31058,11 @@ class Client extends base {
 class Session extends base {
     constructor(token, config) {
         super("authn", token, config);
-        this.apiVersion = "v1";
     }
-    // authn::/v1/session/invalidate
     /**
      * @summary Invalidate Session
      * @description Invalidate a session by session ID.
-     * @operationId authn_post_v1_session_invalidate
+     * @operationId authn_post_v2_session_invalidate
      * @param {String} sessionID - An ID for a token
      * @returns {Promise} - A promise representing an async call to
      * the invalidate session endpoint. Contains an empty object.
@@ -31710,13 +31074,12 @@ class Session extends base {
      * ```
      */
     invalidate(sessionID) {
-        return this.post("session/invalidate", { session_id: sessionID });
+        return this.post("v2/session/invalidate", { session_id: sessionID });
     }
-    // authn::/v1/session/list
     /**
      * @summary List session (service token)
      * @description List sessions.
-     * @operationId authn_post_v1_session_list
+     * @operationId authn_post_v2_session_list
      * @param {AuthN.Session.ListRequest} request - An object of options:
      *   - filter (object): A filter object
      *   - last (string): Reflected value from a previous response to obtain the next page of results.
@@ -31735,13 +31098,12 @@ class Session extends base {
      * ```
      */
     list(request = {}) {
-        return this.post("session/list", request);
+        return this.post("v2/session/list", request);
     }
-    // authn::/v1/session/logout
     /**
      * @summary Log out (service token)
      * @description Invalidate all sessions belonging to a user.
-     * @operationId authn_post_v1_session_logout
+     * @operationId authn_post_v2_session_logout
      * @param {String} user_id - The identity of a user or a service
      * @returns {Promise} - A promise representing an async call to
      * the session logout endpoint. Contains an empty object.
@@ -31753,11 +31115,95 @@ class Session extends base {
      * ```
      */
     logout(user_id) {
-        return this.post("session/logout", { user_id });
+        return this.post("v2/session/logout", { user_id });
+    }
+}
+
+;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/agreements/index.js
+
+class Agreements extends base {
+    constructor(token, config) {
+        super("authn", token, config);
+    }
+    /**
+     * @summary Create an agreement
+     * @description Create an agreement.
+     * @operationId authn_post_v2_agreements_create
+     * @param {AuthN.Agreements.CreateRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.Agreements.CreateResult>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/agreements#/v2/agreements/create).
+     * @example
+     * ```js
+     * const response = await authn.agreements.create({
+     *   type: AuthN.Agreements.AgreementType.EULA,
+     *   name: "EULA_V1",
+     *   text: "You agree to behave yourself while logged in.",
+     * });
+     * ```
+     */
+    create(request) {
+        return this.post("v2/agreements/create", request);
+    }
+    /**
+     * @summary Delete an agreement
+     * @description Delete an agreement.
+     * @operationId authn_post_v2_agreements_delete
+     * @param {AuthN.Agreements.DeleteRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.Agreements.DeleteResult>>} - A PangeaResponse
+     * with an empty object.
+     * @example
+     * ```js
+     * await authn.agreements.delete({
+     *   type: AuthN.Agreements.AgreementType.EULA,
+     *   id: "peu_wuk7tvtpswyjtlsx52b7yyi2l7zotv4a",
+     * });
+     * ```
+     */
+    delete(request) {
+        return this.post("v2/agreements/delete", request);
+    }
+    /**
+     * @summary Update agreement
+     * @description Update agreement.
+     * @operationId authn_post_v2_agreements_update
+     * @param {AuthN.Agreements.UpdateRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.Agreements.UpdateRequest>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/agreements#/v2/agreements/update).
+     * @example
+     * ```js
+     * const response = await authn.agreements.update({
+     *   type: AuthN.Agreements.AgreementType.EULA,
+     *   id: "peu_wuk7tvtpswyjtlsx52b7yyi2l7zotv4a",
+     *   text: "You agree to behave yourself while logged in. Don't be evil.",
+     *   active: true,
+     * });
+     * ```
+     */
+    update(request) {
+        return this.post("v2/agreements/update", request);
+    }
+    /**
+     * @summary List agreements
+     * @description List agreements.
+     * @operationId authn_post_v2_agreements_list
+     * @param {AuthN.Agreements.ListRequest} request
+     * @returns {Promise<PangeaResponse<AuthN.Agreements.ListResult>>} - A promise
+     * representing an async call to the endpoint. Available response fields can be found in our
+     * [API Documentation](https://pangea.cloud/docs/api/authn/agreements#/v2/agreements/list).
+     * @example
+     * ```js
+     * const response = await authn.agreements.list();
+     * ```
+     */
+    list(request) {
+        return this.post("v2/agreements/list", request ?? {});
     }
 }
 
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/authn/index.js
+
 
 
 
@@ -31794,11 +31240,17 @@ class AuthNService extends base {
             writable: true,
             value: void 0
         });
-        this.apiVersion = "v1";
+        Object.defineProperty(this, "agreements", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         this.user = new User(token, config);
         this.flow = new Flow(token, config);
         this.client = new Client(token, config);
         this.session = new Session(token, config);
+        this.agreements = new Agreements(token, config);
     }
 }
 /* harmony default export */ const authn = (AuthNService);
@@ -31812,7 +31264,6 @@ class AuthNService extends base {
 class EmbargoService extends base {
     constructor(token, config) {
         super("embargo", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary Check IP
@@ -31830,7 +31281,7 @@ class EmbargoService extends base {
         const data = {
             ip: ipAddress,
         };
-        return this.post("ip/check", data);
+        return this.post("v1/ip/check", data);
     }
     /**
      * @summary ISO code check
@@ -31847,7 +31298,7 @@ class EmbargoService extends base {
         const data = {
             iso_code: isoCode,
         };
-        return this.post("iso/check", data);
+        return this.post("v1/iso/check", data);
     }
 }
 /* harmony default export */ const embargo = (EmbargoService);
@@ -31861,7 +31312,6 @@ class EmbargoService extends base {
 class RedactService extends base {
     constructor(token, config) {
         super("redact", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary Redact
@@ -31872,6 +31322,7 @@ class RedactService extends base {
      *   - debug {Boolean} - Setting this value to true will provide a detailed analysis of the redacted
      * data and the rules that caused redaction
      *   - rules {String[]} - An array of redact rule short names
+     *   - rulesets {String[]} - An array of redact ruleset short names
      *   - return_result {Boolean} - Setting this value to false will omit the redacted result only returning count
      * @returns {Promise} - A promise representing an async call to the redact endpoint
      * @example
@@ -31886,7 +31337,7 @@ class RedactService extends base {
             text: text,
         };
         Object.assign(input, options);
-        return this.post("redact", input);
+        return this.post("v1/redact", input);
     }
     /**
      * @summary Redact structured
@@ -31897,6 +31348,7 @@ class RedactService extends base {
      *   - debug {Boolean} - Setting this value to true will provide a detailed analysis of the redacted
      * data and the rules that caused redaction
      *   - rules {String[]} - An array of redact rule short names
+     *   - rulesets {String[]} - An array of redact ruleset short names
      *   - jsonp {String[]} - JSON path(s) used to identify the specific JSON fields to redact in the
      * structured data. Note: If jsonp parameter is used, the data parameter must be in JSON format.
      *   - format {String} - The format of the structured data to redact. Default: "json"
@@ -31914,7 +31366,7 @@ class RedactService extends base {
             data: data,
         };
         Object.assign(input, options);
-        return this.post("redact_structured", input);
+        return this.post("v1/redact_structured", input);
     }
 }
 /* harmony default export */ const redact = (RedactService);
@@ -31955,7 +31407,6 @@ const hashType = "sha256";
 class FileIntelService extends base {
     constructor(token, config) {
         super("file-intel", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary Reputation, from file hash
@@ -31987,7 +31438,7 @@ class FileIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("reputation", data);
+        return this.post("v1/reputation", data);
     }
     /**
      * @summary Reputation, from file path
@@ -32021,7 +31472,7 @@ class FileIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("reputation", data);
+        return this.post("v1/reputation", data);
     }
 }
 /**
@@ -32051,7 +31502,6 @@ class FileIntelService extends base {
 class DomainIntelService extends base {
     constructor(token, config) {
         super("domain-intel", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary Reputation check
@@ -32081,7 +31531,41 @@ class DomainIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("reputation", data);
+        return this.post("v1/reputation", data);
+    }
+    /**
+     * @summary WhoIs
+     * @description Retrieve who is for a domain from a provider, including an optional detailed report.
+     * @operationId domain_intel_post_v1_whois
+     * @param {String} domain - The domain to query.
+     * @param {Object} options - An object of optional parameters. Parameters supported:
+     *   - provider {String} - Use reputation data from this provider: "whoisxml".
+     *   Default provider defined by the configuration.
+     *   - verbose {Boolean} - Echo the API parameters in the response. Default: verbose=false.
+     *   - raw {Boolean} - Include raw data from this provider. Default: raw=false.
+     * @returns {Promise} - A promise representing an async call to the whois endpoint.
+     * @example
+     * ```js
+     * const response = await domainIntel.whoIs(
+     *   "google.com",
+     *   {
+     *     verbose: true,
+     *     raw: true,
+     *   }
+     * );
+     * ```
+     */
+    whoIs(domain, options) {
+        const data = {
+            domain,
+        };
+        if (options?.provider)
+            data.provider = options.provider;
+        if (options?.verbose)
+            data.verbose = options.verbose;
+        if (options?.raw)
+            data.raw = options.raw;
+        return this.post("v1/whois", data);
     }
 }
 /**
@@ -32110,7 +31594,6 @@ class DomainIntelService extends base {
 class IPIntelService extends base {
     constructor(token, config) {
         super("ip-intel", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary Reputation
@@ -32143,7 +31626,7 @@ class IPIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("reputation", data);
+        return this.post("v1/reputation", data);
     }
     /**
      * @summary Geolocate
@@ -32176,7 +31659,7 @@ class IPIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("geolocate", data);
+        return this.post("v1/geolocate", data);
     }
     /**
      * @summary Domain
@@ -32209,7 +31692,7 @@ class IPIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("domain", data);
+        return this.post("v1/domain", data);
     }
     /**
      * @summary VPN
@@ -32242,7 +31725,7 @@ class IPIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("vpn", data);
+        return this.post("v1/vpn", data);
     }
     /**
      * @summary Proxy
@@ -32275,7 +31758,7 @@ class IPIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("proxy", data);
+        return this.post("v1/proxy", data);
     }
 }
 /**
@@ -32304,7 +31787,6 @@ class IPIntelService extends base {
 class URLIntelService extends base {
     constructor(token, config) {
         super("url-intel", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary Reputation check
@@ -32337,7 +31819,7 @@ class URLIntelService extends base {
             data.verbose = options.verbose;
         if (options?.raw)
             data.raw = options.raw;
-        return this.post("reputation", data);
+        return this.post("v1/reputation", data);
     }
 }
 // User
@@ -32366,7 +31848,6 @@ class URLIntelService extends base {
 class UserIntelService extends base {
     constructor(token, config) {
         super("user-intel", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary Look up breached users
@@ -32384,7 +31865,7 @@ class UserIntelService extends base {
      *  const response = await userIntel.userBreached(request);
      */
     userBreached(request) {
-        return this.post("user/breached", request);
+        return this.post("v1/user/breached", request);
     }
     /**
      * @summary Look up breached passwords
@@ -32408,7 +31889,7 @@ class UserIntelService extends base {
             hash_prefix: hashPrefix,
         };
         Object.assign(data, options);
-        return this.post("password/breached", data);
+        return this.post("v1/password/breached", data);
     }
     static isPasswordBreached(response, hash) {
         if (response.result.raw_data === undefined) {
@@ -32441,7 +31922,6 @@ class UserIntelService extends base {
 class VaultService extends base {
     constructor(token, config) {
         super("vault", token, config);
-        this.apiVersion = "v1";
     }
     /**
      * @summary State change
@@ -32468,7 +31948,7 @@ class VaultService extends base {
             state: state,
         };
         Object.assign(data, options);
-        return this.post("state/change", data);
+        return this.post("v1/state/change", data);
     }
     /**
      * @summary Delete
@@ -32487,7 +31967,7 @@ class VaultService extends base {
         const data = {
             id: id,
         };
-        return this.post("delete", data);
+        return this.post("v1/delete", data);
     }
     /**
      * @summary Retrieve
@@ -32518,7 +31998,7 @@ class VaultService extends base {
             id: id,
         };
         Object.assign(data, options);
-        return this.post("get", data);
+        return this.post("v1/get", data);
     }
     /**
      * @summary List
@@ -32553,7 +32033,7 @@ class VaultService extends base {
      * ```
      */
     async list(options = {}) {
-        return this.post("list", options);
+        return this.post("v1/list", options);
     }
     /**
      * @summary Update
@@ -32597,7 +32077,7 @@ class VaultService extends base {
             id: id,
         };
         Object.assign(data, options);
-        return this.post("update", data);
+        return this.post("v1/update", data);
     }
     /**
      * @summary Secret store
@@ -32639,7 +32119,7 @@ class VaultService extends base {
             name: name,
         };
         Object.assign(data, options);
-        return this.post("secret/store", data);
+        return this.post("v1/secret/store", data);
     }
     /**
      * @summary Pangea token store
@@ -32681,7 +32161,7 @@ class VaultService extends base {
             name: name,
         };
         Object.assign(data, options);
-        return this.post("secret/store", data);
+        return this.post("v1/secret/store", data);
     }
     /**
      * @summary Secret rotate
@@ -32710,7 +32190,7 @@ class VaultService extends base {
             secret: secret,
         };
         Object.assign(data, options);
-        return this.post("secret/rotate", data);
+        return this.post("v1/secret/rotate", data);
     }
     /**
      * @summary Token rotate
@@ -32732,7 +32212,7 @@ class VaultService extends base {
             id: id,
             rotation_grace_period: rotation_grace_period,
         };
-        return this.post("secret/rotate", data);
+        return this.post("v1/secret/rotate", data);
     }
     /**
      * @summary Symmetric generate
@@ -32778,7 +32258,7 @@ class VaultService extends base {
             name: name,
         };
         Object.assign(data, options);
-        return this.post("key/generate", data);
+        return this.post("v1/key/generate", data);
     }
     /**
      * @summary Asymmetric generate
@@ -32824,7 +32304,7 @@ class VaultService extends base {
             name: name,
         };
         Object.assign(data, options);
-        return this.post("key/generate", data);
+        return this.post("v1/key/generate", data);
     }
     /**
      * @summary Asymmetric store
@@ -32876,7 +32356,7 @@ class VaultService extends base {
             name: name,
         };
         Object.assign(data, options);
-        return this.post("key/store", data);
+        return this.post("v1/key/store", data);
     }
     /**
      * @summary Symmetric store
@@ -32925,7 +32405,7 @@ class VaultService extends base {
             name: name,
         };
         Object.assign(data, options);
-        return this.post("key/store", data);
+        return this.post("v1/key/store", data);
     }
     /**
      * @summary Key rotate
@@ -32955,7 +32435,7 @@ class VaultService extends base {
             id: id,
         };
         Object.assign(data, options);
-        return this.post("key/rotate", data);
+        return this.post("v1/key/rotate", data);
     }
     /**
      * @summary Encrypt
@@ -32977,7 +32457,7 @@ class VaultService extends base {
             id: id,
             plain_text: plainText,
         };
-        return this.post("key/encrypt", data);
+        return this.post("v1/key/encrypt", data);
     }
     /**
      * @summary Decrypt
@@ -33003,7 +32483,7 @@ class VaultService extends base {
             cipher_text: cipherText,
         };
         Object.assign(data, options);
-        return this.post("key/decrypt", data);
+        return this.post("v1/key/decrypt", data);
     }
     /**
      * @summary Sign
@@ -33025,7 +32505,7 @@ class VaultService extends base {
             id: id,
             message: message,
         };
-        return this.post("key/sign", data);
+        return this.post("v1/key/sign", data);
     }
     /**
      * @summary Verify
@@ -33054,7 +32534,7 @@ class VaultService extends base {
             signature: signature,
         };
         Object.assign(data, options);
-        return this.post("key/verify", data);
+        return this.post("v1/key/verify", data);
     }
     /**
      * @summary JWT Retrieve
@@ -33077,7 +32557,7 @@ class VaultService extends base {
             id: id,
         };
         Object.assign(data, options);
-        return this.post("get/jwk", data);
+        return this.post("v1/get/jwk", data);
     }
     /**
      * @summary JWT Sign
@@ -33099,7 +32579,7 @@ class VaultService extends base {
             id: id,
             payload: payload,
         };
-        return this.post("key/sign/jwt", data);
+        return this.post("v1/key/sign/jwt", data);
     }
     /**
      * @summary JWT Verify
@@ -33118,12 +32598,57 @@ class VaultService extends base {
         let data = {
             jws: jws,
         };
-        return this.post("key/verify/jwt", data);
+        return this.post("v1/key/verify/jwt", data);
+    }
+    /**
+     * @summary Create
+     * @description Creates a folder.
+     * @operationId vault_post_v1_folder_create
+     * @param {Vault.Folder.CreateRequest} request - An object representing request to /folder/create endpoint
+     * @returns {Promise} - A promise representing an async call to the folder create endpoint
+     * @example
+     * ```js
+     * const createParentResp = await vault.folderCreate({
+     *  name: "folder_name",
+     *  folder: "parent/folder/name",
+     * });
+     * ```
+     */
+    async folderCreate(request) {
+        return this.post("v1/folder/create", request);
     }
 }
 /* harmony default export */ const vault = (VaultService);
 
+;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/file_scan.js
+
+class FileScanService extends base {
+    constructor(token, config) {
+        super("file-scan", token, config);
+    }
+    /**
+     * @summary Scan
+     * @description Scan a file for malicious content.
+     * @operationId file_scan_post_v1_scan
+     * @param {FileScan.ScanRequest} request
+     * @param {string} filepath
+     * @param {FileScan.Options} options
+     * @returns {Promise} - A promise representing an async call to the check endpoint
+     * @example
+     * ```js
+     * const request = { verbose: true, raw: true, provider: "crowdstrike" };
+     * const response = await client.fileScan(request, "./path/to/file.pdf");
+     * ```
+     */
+    fileScan(request, filepath, options = {
+        pollResultSync: true,
+    }) {
+        return this.postMultipart("v1/scan", request, filepath, options);
+    }
+}
+
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/services/index.js
+
 
 
 
@@ -33143,6 +32668,7 @@ class VaultService extends base {
     URLIntelService: URLIntelService,
     UserIntelService: UserIntelService,
     VaultService: vault,
+    FileScanService: FileScanService,
 });
 
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/index.js
@@ -33169,6 +32695,7 @@ const dist_IPIntelService = services.IPIntelService;
 const dist_URLIntelService = services.URLIntelService;
 const dist_UserIntelService = services.UserIntelService;
 const dist_VaultService = services.VaultService;
+const dist_FileScanService = services.FileScanService;
 
 
 /***/ }),
@@ -33260,7 +32787,7 @@ var __webpack_exports__ = {};
 (() => {
 const core = __nccwpck_require__(2186);
 const github = __nccwpck_require__(5438);
-const pangea = __nccwpck_require__(9449);
+const pangea = __nccwpck_require__(7334);
 
 const endpoint = core.getInput('endpoint').split(".");
 const payload = JSON.parse(core.getInput('payload'));
