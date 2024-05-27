@@ -16954,6 +16954,25 @@ module.exports = async (input, options, callback) => {
 		options.agent = agent.http;
 	}
 
+	// If we're sending HTTP/1.1, handle any explicitly set H2 headers in the options:
+	if (options.headers) {
+		options.headers = {...options.headers};
+
+		// :authority is equivalent to the HTTP/1.1 host header
+		if (options.headers[':authority']) {
+			if (!options.headers.host) {
+				options.headers.host = options.headers[':authority'];
+			}
+
+			delete options.headers[':authority'];
+		}
+
+		// Remove other HTTP/2 headers as they have their counterparts in the options
+		delete options.headers[':method'];
+		delete options.headers[':scheme'];
+		delete options.headers[':path'];
+	}
+
 	return delayAsyncDestroy(http.request(options, callback));
 };
 
@@ -19247,27 +19266,22 @@ class Keyv extends EventEmitter {
 				}
 
 				if (isArray) {
-					const result = [];
-
-					for (let row of data) {
+					return data.map((row, index) => {
 						if ((typeof row === 'string')) {
 							row = this.opts.deserialize(row);
 						}
 
 						if (row === undefined || row === null) {
-							result.push(undefined);
-							continue;
+							return undefined;
 						}
 
 						if (typeof row.expires === 'number' && Date.now() > row.expires) {
-							this.delete(key).then(() => undefined);
-							result.push(undefined);
-						} else {
-							result.push((options && options.raw) ? row : row.value);
+							this.delete(key[index]).then(() => undefined);
+							return undefined;
 						}
-					}
 
-					return result;
+						return (options && options.raw) ? row : row.value;
+					});
 				}
 
 				if (typeof data.expires === 'number' && Date.now() > data.expires) {
@@ -48913,7 +48927,10 @@ const supportedProtocols = new Set([
 const hasCustomProtocol = urlString => {
 	try {
 		const {protocol} = new URL(urlString);
-		return protocol.endsWith(':') && !supportedProtocols.has(protocol);
+
+		return protocol.endsWith(':')
+			&& !protocol.includes('.')
+			&& !supportedProtocols.has(protocol);
 	} catch {
 		return false;
 	}
