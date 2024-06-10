@@ -20360,10 +20360,11 @@ var __disposeResources;
     __asyncGenerator = function (thisArg, _arguments, generator) {
         if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
         var g = generator.apply(thisArg, _arguments || []), i, q = [];
-        return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
-        function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
+        return i = {}, verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function () { return this; }, i;
+        function awaitReturn(f) { return function (v) { return Promise.resolve(v).then(f, reject); }; }
+        function verb(n, f) { if (g[n]) { i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; if (f) i[n] = f(i[n]); } }
         function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
-        function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);  }
+        function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r); }
         function fulfill(value) { resume("next", value); }
         function reject(value) { resume("throw", value); }
         function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
@@ -20427,7 +20428,7 @@ var __disposeResources;
     __addDisposableResource = function (env, value, async) {
         if (value !== null && value !== void 0) {
             if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
-            var dispose;
+            var dispose, inner;
             if (async) {
                 if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
                 dispose = value[Symbol.asyncDispose];
@@ -20435,8 +20436,10 @@ var __disposeResources;
             if (dispose === void 0) {
                 if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
                 dispose = value[Symbol.dispose];
+                if (async) inner = dispose;
             }
             if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
+            if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
             env.stack.push({ value: value, dispose: dispose, async: async });
         }
         else if (async) {
@@ -45536,6 +45539,7 @@ __nccwpck_require__.d(__webpack_exports__, {
   "PangeaErrors": () => (/* reexport */ errors_PangeaErrors),
   "PangeaRequest": () => (/* binding */ dist_PangeaRequest),
   "PangeaResponse": () => (/* binding */ dist_PangeaResponse),
+  "Redact": () => (/* reexport */ Redact),
   "RedactService": () => (/* binding */ dist_RedactService),
   "TransferMethod": () => (/* reexport */ TransferMethod),
   "URLIntelService": () => (/* binding */ dist_URLIntelService),
@@ -45579,6 +45583,29 @@ var Audit;
         DownloadFormat["CSV"] = "csv";
     })(DownloadFormat = Audit.DownloadFormat || (Audit.DownloadFormat = {}));
 })(Audit || (Audit = {}));
+var Redact;
+(function (Redact) {
+    let RedactType;
+    (function (RedactType) {
+        RedactType["MASK"] = "mask";
+        RedactType["PARTIAL_MASKING"] = "partial_masking";
+        RedactType["REPLACEMENT"] = "replacement";
+        RedactType["DETECT_ONLY"] = "detect_only";
+        RedactType["HASH"] = "hash";
+        RedactType["FPE"] = "fpe";
+    })(RedactType = Redact.RedactType || (Redact.RedactType = {}));
+    let FPEAlphabet;
+    (function (FPEAlphabet) {
+        FPEAlphabet["NUMERIC"] = "numeric";
+        FPEAlphabet["ALPHANUMERICLOWER"] = "alphanumericlower";
+        FPEAlphabet["ALPHANUMERIC"] = "alphanumeric";
+    })(FPEAlphabet = Redact.FPEAlphabet || (Redact.FPEAlphabet = {}));
+    let MaskingType;
+    (function (MaskingType) {
+        MaskingType["MASK"] = "mask";
+        MaskingType["UNMASK"] = "unmask";
+    })(MaskingType = Redact.MaskingType || (Redact.MaskingType = {}));
+})(Redact || (Redact = {}));
 /**
  * Intel services interface definitions
  */
@@ -45614,6 +45641,8 @@ var types_Vault;
         KeyPurpose["SIGNING"] = "signing";
         KeyPurpose["ENCRYPTION"] = "encryption";
         KeyPurpose["JWT"] = "jwt";
+        /** Format-preserving encryption. */
+        KeyPurpose["FPE"] = "fpe";
     })(KeyPurpose = Vault.KeyPurpose || (Vault.KeyPurpose = {}));
     let AsymmetricAlgorithm;
     (function (AsymmetricAlgorithm) {
@@ -45664,6 +45693,10 @@ var types_Vault;
         SymmetricAlgorithm["AES128_CBC"] = "AES-CBC-128";
         SymmetricAlgorithm["AES256_CBC"] = "AES-CBC-256";
         SymmetricAlgorithm["AES"] = "AES-CFB-128";
+        /** 128-bit encryption using the FF3-1 algorithm. Beta feature. */
+        SymmetricAlgorithm["AES128_FF3_1"] = "AES-FF3-1-128-BETA";
+        /** 256-bit encryption using the FF3-1 algorithm. Beta feature. */
+        SymmetricAlgorithm["AES256_FF3_1"] = "AES-FF3-1-256-BETA";
     })(SymmetricAlgorithm = Vault.SymmetricAlgorithm || (Vault.SymmetricAlgorithm = {}));
     let ItemType;
     (function (ItemType) {
@@ -45704,6 +45737,22 @@ var types_Vault;
         ItemOrderBy["FOLDER"] = "folder";
         ItemOrderBy["VERSION"] = "version";
     })(ItemOrderBy = Vault.ItemOrderBy || (Vault.ItemOrderBy = {}));
+    /** Character sets for format-preserving encryption. */
+    let TransformAlphabet;
+    (function (TransformAlphabet) {
+        /** Lowercase alphabet (a-z). */
+        TransformAlphabet["ALPHA_LOWER"] = "alphalower";
+        /** Uppercase alphabet (A-Z). */
+        TransformAlphabet["ALPHA_UPPER"] = "alphaupper";
+        /** Alphanumeric (a-z, A-Z, 0-9). */
+        TransformAlphabet["ALPHANUMERIC"] = "alphanumeric";
+        /** Lowercase alphabet with numbers (a-z, 0-9). */
+        TransformAlphabet["ALPHANUMERIC_LOWER"] = "alphanumericlower";
+        /** Uppercase alphabet with numbers (A-Z, 0-9). */
+        TransformAlphabet["ALPHANUMERIC_UPPER"] = "alphanumericupper";
+        /** Numeric (0-9). */
+        TransformAlphabet["NUMERIC"] = "numeric";
+    })(TransformAlphabet = Vault.TransformAlphabet || (Vault.TransformAlphabet = {}));
     let Secret;
     (function (Secret) {
         Secret.Algorithm = {
@@ -45825,7 +45874,7 @@ var AuthZ;
 
 ;// CONCATENATED MODULE: ./node_modules/pangea-node-sdk/dist/config.js
 
-const version = "3.8.0";
+const version = "3.9.0";
 /** Configuration for a Pangea service client. */
 class PangeaConfig {
     /** Pangea API domain. */
@@ -52655,6 +52704,7 @@ class BaseService {
     /**
      * `POST` request.
      *
+     * @internal
      * @template R Result type.
      * @param endpoint Endpoint path.
      * @param data Request body.
@@ -53430,11 +53480,19 @@ class AuditService extends base {
      *   - old:
      *   - status:
      *   - target:
-     * @param {Object} options - Search options. The following search options are supported:
+     * @param {Object} queryOptions - Search options. The following search options are supported:
      *   - limit (number): Maximum number of records to return per page.
      *   - start (string): The start of the time range to perform the search on.
      *   - end (string): The end of the time range to perform the search on. All records up to the latest if left out.
-     *   - sources (array): A list of sources that the search can apply to. If empty or not provided, matches only the default source.
+     *   - max_results (number): Maximum number of results to return.
+     *   - order (string): Specify the sort order of the response.
+     *   - order_by (string): Name of column to sort the results by.
+     *   - search_restriction (Audit.SearchRestriction): A list of keys to restrict the search results to. Useful for partitioning data available to the query string.
+     *   - verbose (boolean): If true, include the root hash of the tree and the membership proof for each record.
+     *   - return_context (boolean): Return the context data needed to decrypt secure audit events that have been redacted with format preserving encryption.
+     * @param {Object} options - Search options. The following search options are supported:
+     *   - verifyConsistency (boolean): If true verify published roots and membership proof of each event
+     *   - skipEventVerification (boolean): If true skip event hash verification
      * @returns {Promise} - A promise representing an async call to the search endpoint
      * @example
      * ```js
@@ -53465,7 +53523,12 @@ class AuditService extends base {
      * @param {String} id - The id of a successful search
      * @param {number} limit (default 20) - The number of results returned
      * @param {number} offset (default 0) - The starting position of the first returned result
-     * @param {boolean} verifyResponse (default false) - Verify consistency and membership proof of every record
+     * @param {Object} options - Search options. The following search options are supported:
+     *   - verifyConsistency (boolean): If true verify published roots and membership proof of each event
+     *   - skipEventVerification (boolean): If true skip event hash verification
+     * @param {Object} queryOptions - Search options. The following search options are supported:
+     *   - assert_search_restriction (Audit.SearchRestriction): A list of keys to restrict the search results to. Useful for partitioning data available to the query string.
+     *   - return_context (boolean): Return the context data needed to decrypt secure audit events that have been redacted with format preserving encryption.
      * @returns {Promise} - A promise representing an async call to the results endpoint
      * @example
      * ```js
@@ -53476,7 +53539,7 @@ class AuditService extends base {
      * );
      * ```
      */
-    async results(id, limit = 20, offset = 0, options) {
+    async results(id, limit = 20, offset = 0, options, queryOptions = {}) {
         if (!id) {
             throw new Error("Missing required `id` parameter");
         }
@@ -53485,6 +53548,7 @@ class AuditService extends base {
             limit,
             offset,
         };
+        Object.assign(payload, queryOptions);
         const response = await this.post("v1/results", payload);
         return this.processSearchResponse(response, options);
     }
@@ -53658,12 +53722,12 @@ class UserProfile extends base {
      * @summary Get user
      * @description Get user's information by identity or email.
      * @operationId authn_post_v2_user_profile_get
-     * @param {AuthN.User.Profile.Get.EmailRequest | AuthN.User.Profile.Get.IDRequest} data - Must include either an `email` or `id`:
-     *   - email (string): An email address
-     *   - id (string): The identity of a user or a service
-     * @returns {Promise<PangeaResponse<AuthN.User.Profile.GetResult>>} - A promise
-     * representing an async call to the endpoint. Available response fields can be found in our
-     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/profile/get).
+     * @param data Must include one of `email`, `id`, or `username`:
+     *   - email (string): An email address.
+     *   - id (string): The identity of a user or a service.
+     *   - username (string): A username.
+     * @returns A promise representing an async call to the endpoint. Available
+     * response fields can be found in our [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/profile/get).
      * @example
      * ```js
      * const response = await authn.user.getProfile(
@@ -53680,13 +53744,13 @@ class UserProfile extends base {
      * @summary Update user
      * @description Update user's information by identity or email.
      * @operationId authn_post_v2_user_profile_update
-     * @param {AuthN.User.Profile.Update.EmailRequest | AuthN.User.Profile.Update.IDRequest} data - Must include either an `email` OR `id` AND `profile`:
-     *   - email (string): An email address
-     *   - id (string): The identity of a user or a service
-     *   - profile (object): Updates to a user profile
-     * @returns {Promise<PangeaResponse<AuthN.User.Profile.UpdateResult>>} - A promise
-     * representing an async call to the endpoint. Available response fields can be found in our
-     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/profile/update).
+     * @param data Must include `profile` and one of `email`, id`, or `username`:
+     *   - email (string): An email address.
+     *   - id (string): The identity of a user or a service.
+     *   - username (string): A username.
+     *   - profile (object): Updates to a user profile.
+     * @returns A promise representing an async call to the endpoint. Available
+     * response fields can be found in our [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/profile/update).
      * @example
      * ```js
      * const response = await authn.user.profile.update(
@@ -53714,9 +53778,9 @@ class UserAuthenticators extends base {
      * @summary Delete user authenticator
      * @description Delete a user's authenticator.
      * @operationId authn_post_v2_user_authenticators_delete
-     * @param {AuthN.User.Authenticators.Delete.EmailRequest | AuthN.User.Authenticators.Delete.IDRequest} request
-     * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint. Contains an empty object.
+     * @param request
+     * @returns A promise representing an async call to the endpoint. Contains an
+     * empty object.
      * @example
      * ```js
      * await authn.authenticators.delete({
@@ -53823,11 +53887,12 @@ class User extends base {
      * @summary Delete User
      * @description Delete a user.
      * @operationId authn_post_v2_user_delete
-     * @param {AuthN.User.Delete.EmailRequest | AuthN.User.Delete.IDRequest} request - Supported options:
-     *   - email (string): An email address
-     *   - id (string): The identity of a user or a service
-     * @returns {Promise<PangeaResponse<{}>>} - A promise
-     * representing an async call to the endpoint. Contains an empty object.
+     * @param request Supported options:
+     *   - email (string): An email address.
+     *   - id (string): The identity of a user or a service.
+     *   - username (string): A username.
+     * @returns A promise representing an async call to the endpoint. Contains an
+     * empty object.
      * @example
      * await authn.user.delete({
      *   id: "pui_xpkhwpnz2cmegsws737xbsqnmnuwtbm5",
@@ -53890,14 +53955,14 @@ class User extends base {
      * @summary Update user's settings
      * @description Update user's settings.
      * @operationId authn_post_v2_user_update
-     * @param {AuthN.User.Update.EmailRequest | AuthN.User.Update.IDRequest} request - Supported request:
-     *   - email (string): An email address
-     *   - id (string): The identity of a user or a service
+     * @param request Supported request parameters:
+     *   - email (string): An email address.
+     *   - id (string): The identity of a user or a service.
+     *   - username (string): A username.
      *   - disabled (boolean): Disabling a user account will prevent them from logging in.
-     *   - unlock (boolean): Unlock a user account if it has been locked out due to failed Authentication attempts.
-     * @returns {Promise<PangeaResponse<AuthN.User.UpdateResult>>} - A promise
-     * representing an async call to the endpoint. Available response fields can be found in our
-     * [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/update).
+     *   - unlock (boolean): Unlock a user account if it has been locked out due to failed authentication attempts.
+     * @returns A promise representing an async call to the endpoint. Available
+     * response fields can be found in our [API Documentation](https://pangea.cloud/docs/api/authn/user#/v2/user/update).
      * @example
      * ```js
      * const response = await authn.user.update(
@@ -54448,6 +54513,21 @@ class AuthNService extends base {
  * @extends BaseService
  */
 class AuthZService extends base {
+    /**
+     * Creates a new `AuthZService` with the given Pangea API token and
+     * configuration.
+     *
+     * @param token Pangea API token.
+     * @param config Configuration.
+     *
+     * @example
+     * ```js
+     * const config = new PangeaConfig({ domain: "pangea_domain" });
+     * const audit = new AuthZService("pangea_token", config);
+     * ```
+     *
+     * @summary AuthZ
+     */
     constructor(token, config) {
         super("authz", token, config);
     }
@@ -54492,7 +54572,8 @@ class AuthZService extends base {
      * ```typescript
      * const response = await authz.tupleList({
      *   filter: {
-     *     resource: { type: 'folder', id: 'resource1' },
+     *     resource_type: 'folder',
+     *     resource_id: 'resource1',
      *   },
      *   size: 10,
      * });
@@ -54695,6 +54776,7 @@ class RedactService extends base {
      *   - rules {String[]} - An array of redact rule short names
      *   - rulesets {String[]} - An array of redact ruleset short names
      *   - return_result {Boolean} - Setting this value to false will omit the redacted result only returning count
+     *   - redaction_method_overrides {RedactionMethodOverrides} - A set of redaction method overrides for any enabled rule. These methods override the config declared methods
      * @returns {Promise} - A promise representing an async call to the redact endpoint
      * @example
      * ```js
@@ -54724,6 +54806,7 @@ class RedactService extends base {
      * structured data. Note: If jsonp parameter is used, the data parameter must be in JSON format.
      *   - format {String} - The format of the structured data to redact. Default: "json"
      *   - return_result {Boolean} - Setting this value to false will omit the redacted result only returning count
+     *   - redaction_method_overrides {RedactionMethodOverrides} - A set of redaction method overrides for any enabled rule. These methods override the config declared methods
      * @returns {Promise} - A promise representing an async call to the redactStructured endpoint
      * @example
      * ```js
@@ -54738,6 +54821,18 @@ class RedactService extends base {
         };
         Object.assign(input, options);
         return this.post("v1/redact_structured", input);
+    }
+    /**
+     * @summary Unredact
+     * @description Decrypt or unredact fpe redactions.
+     * @operationId redact_post_v1_unredact
+     * @param request - Unredact request data
+     *   - redacted_data - Data to unredact
+     *   - fpe_context {string} - FPE context used to decrypt and unredact data
+     * @returns {Promise} - A promise representing an async call to the unredact endpoint
+     */
+    unredact(request) {
+        return this.post("v1/unredact", request);
     }
 }
 /* harmony default export */ const redact = (RedactService);
@@ -56463,6 +56558,44 @@ class VaultService extends base {
      */
     async decryptStructured(request) {
         return this.post("v1/key/decrypt/structured", request);
+    }
+    /**
+     * @summary Encrypt transform
+     * @description Encrypt using a format-preserving algorithm (FPE).
+     * @operationId vault_post_v1_key_encrypt_transform
+     * @param request Request parameters.
+     * @returns A `Promise` of the encrypted result.
+     * @example
+     * ```js
+     * const response = await vault.encryptTransform({
+     *   id: "pvi_[...]",
+     *   plain_text: "123-4567-8901",
+     *   tweak: "MTIzMTIzMT==",
+     *   alphabet: Vault.TransformAlphabet.ALPHANUMERIC,
+     * });
+     * ```
+     */
+    async encryptTransform(request) {
+        return this.post("v1/key/encrypt/transform", request);
+    }
+    /**
+     * @summary Decrypt transform
+     * @description Decrypt using a format-preserving algorithm (FPE).
+     * @operationId vault_post_v1_key_decrypt_transform
+     * @param request Request parameters.
+     * @returns A `Promise` of the decrypted result.
+     * @example
+     * ```js
+     * const response = await vault.decryptTransform({
+     *   id: "pvi_[...]",
+     *   cipher_text: "tZB-UKVP-MzTM",
+     *   tweak: "MTIzMTIzMT==",
+     *   alphabet: Vault.TransformAlphabet.ALPHANUMERIC,
+     * });
+     * ```
+     */
+    async decryptTransform(request) {
+        return this.post("v1/key/decrypt/transform", request);
     }
 }
 /* harmony default export */ const vault = (VaultService);
